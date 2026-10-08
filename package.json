@@ -15,5 +15,9 @@
     },
     "optionalDependencies": {
         "@laravel/multiplex": "^0.4.1"
+    },
+    "dependencies": {
+        "echarts": "^6.1.0",
+        "sortablejs": "^1.15.7"
     }
 }

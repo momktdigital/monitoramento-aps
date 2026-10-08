@@ -40,7 +40,9 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            // Deve ser MAIOR que o tempo máximo de um job (IngerirFonte: 7200 s). Com o padrão de 90 s, cargas longas
+            // eram devolvidas à fila enquanto ainda rodavam e falhavam com MaxAttemptsExceededException.
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 7500),
             'after_commit' => false,
         ],
 

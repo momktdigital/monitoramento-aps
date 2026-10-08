@@ -17,6 +17,9 @@ export default defineConfig({
         tailwindcss(),
     ],
     server: {
+        // IPv4 explícito: a política de segurança de conteúdo do navegador não aceita endereço IPv6 ([::1]).
+        host: '127.0.0.1',
+        hmr: { host: '127.0.0.1' },
         watch: {
             ignored: ['**/storage/framework/views/**'],
         },
