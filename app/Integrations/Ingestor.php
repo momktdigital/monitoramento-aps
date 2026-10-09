@@ -32,7 +32,7 @@ class Ingestor
     /**
      * Coloca a execução na fila. Retorna false se já houver uma em andamento (e não travada).
      */
-    public function enfileirar(Integracao $integracao, OrigemExecucao $origem, ?int $userId = null, ?int $meses = null): bool
+    public function enfileirar(Integracao $integracao, OrigemExecucao $origem, ?int $userId = null, ?int $meses = null, bool $reprocessar = false): bool
     {
         if ($integracao->status->emAndamento() && ! $integracao->estaTravada(Date::now())) {
             return false;
@@ -40,7 +40,7 @@ class Ingestor
 
         $integracao->forceFill(['status' => StatusIntegracao::NaFila])->save();
 
-        IngerirFonte::dispatch($integracao->id, $origem, $userId, $meses);
+        IngerirFonte::dispatch($integracao->id, $origem, $userId, $meses, $reprocessar);
 
         return true;
     }
@@ -48,7 +48,7 @@ class Ingestor
     /**
      * @param  Closure(int, ?int, ?string): void|null  $aoProgredir  recebe (concluídos, total, etapa) a cada avanço
      */
-    public function executar(Integracao $integracao, OrigemExecucao $origem, ?int $userId = null, ?int $meses = null, bool $apenasPiloto = false, ?Closure $aoProgredir = null): Ingestao
+    public function executar(Integracao $integracao, OrigemExecucao $origem, ?int $userId = null, ?int $meses = null, bool $apenasPiloto = false, ?Closure $aoProgredir = null, bool $reprocessar = false): Ingestao
     {
         $agora = Date::now();
 
@@ -63,7 +63,7 @@ class Ingestor
 
         $integracao->forceFill(['status' => StatusIntegracao::Executando, 'ultima_execucao_em' => $agora])->save();
 
-        $contexto = new ContextoDeIngestao($integracao, $ingestao, $agora, $meses, $apenasPiloto);
+        $contexto = new ContextoDeIngestao($integracao, $ingestao, $agora, $meses, $apenasPiloto, $reprocessar);
 
         if ($aoProgredir !== null) {
             $contexto->ouvirProgresso($aoProgredir);
@@ -132,6 +132,10 @@ class Ingestor
         };
 
         $mensagem = $erro !== null ? $this->mensagemSegura($erro, $integracao) : null;
+
+        if ($mensagem !== null && $contexto->linhas() > 0) {
+            $mensagem = mb_substr('Falhou no meio da carga; '.number_format($contexto->linhas(), 0, ',', '.').' valores já foram salvos e a próxima atualização continua de onde parou. Motivo: '.$mensagem, 0, self::TAMANHO_MAXIMO_DA_MENSAGEM);
+        }
 
         $ingestao->update([
             'status' => $status,

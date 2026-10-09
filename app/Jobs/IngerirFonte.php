@@ -23,12 +23,20 @@ class IngerirFonte implements ShouldBeUnique, ShouldQueue
 
     public int $uniqueFor = 7200;
 
+    /**
+     * Fora do construtor para que jobs já enfileirados (sem este dado) continuem válidos: assumem false.
+     */
+    public bool $reprocessar = false;
+
     public function __construct(
         public readonly int $integracaoId,
         public readonly OrigemExecucao $origem = OrigemExecucao::Agendada,
         public readonly ?int $userId = null,
         public readonly ?int $meses = null,
-    ) {}
+        bool $reprocessar = false,
+    ) {
+        $this->reprocessar = $reprocessar;
+    }
 
     /**
      * Uma execução por fonte por vez: cliques repetidos ou agendamentos sobrepostos não duplicam trabalho.
@@ -46,7 +54,7 @@ class IngerirFonte implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        $ingestor->executar($integracao, $this->origem, $this->userId, $this->meses);
+        $ingestor->executar($integracao, $this->origem, $this->userId, $this->meses, reprocessar: $this->reprocessar);
     }
 
     /**

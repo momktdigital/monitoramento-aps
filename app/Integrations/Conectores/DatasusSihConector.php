@@ -10,6 +10,7 @@ use App\Integrations\Datasus\Contratos\LeitorDeRegistros;
 use App\Integrations\Datasus\NomesDeArquivo;
 use App\Models\ValorIndicador;
 use Carbon\Carbon;
+use Throwable;
 
 /**
  * Internações por condições sensíveis à Atenção Primária (SIH/SUS).
@@ -76,44 +77,63 @@ class DatasusSihConector extends ConectorDatasusBase
         $contexto->etapa('Lendo os arquivos de internações do SIH/SUS', count($ufs) * count($arquivos));
 
         $naoPublicados = [];
+        $erro = null;
 
-        foreach ($ufs as $uf) {
-            $idsDaUf = $contexto->municipios()->where('uf', $uf)->pluck('id')->all();
+        try {
+            foreach ($ufs as $uf) {
+                $idsDaUf = $contexto->municipios()->where('uf', $uf)->pluck('id')->all();
 
-            foreach ($arquivos as $competencia) {
-                $contexto->avancar();
+                foreach ($arquivos as $competencia) {
+                    $contexto->avancar();
 
-                $remoto = NomesDeArquivo::sih($uf, intdiv($competencia, 100), $competencia % 100);
-                $assinatura = $this->baixador->assinatura($remoto);
+                    $remoto = NomesDeArquivo::sih($uf, intdiv($competencia, 100), $competencia % 100);
+                    $assinatura = $this->baixador->assinatura($remoto);
 
-                if ($assinatura === null) {
-                    $naoPublicados[] = $competencia;
+                    if ($assinatura === null) {
+                        $naoPublicados[] = $competencia;
 
-                    continue;
+                        continue;
+                    }
+
+                    $chave = "datasus.sih.{$uf}.{$competencia}";
+
+                    if ($this->jaProcessado($chave, $assinatura, $contexto)) {
+                        continue;
+                    }
+
+                    $contagens = $this->lerArquivo($remoto, AgregadorDeInternacoes::CAMPOS, fn (iterable $registros): array => $this->agregador->agregar($registros, $porCodigo));
+
+                    foreach ($idsDaUf as $municipio) {
+                        $doMes = $contagens[$municipio][$competencia] ?? ['icsap' => 0, 'total' => 0];
+
+                        $contexto->gravar('icsap_internacoes_mes', $municipio, $competencia, (float) $doMes['icsap']);
+                        $contexto->gravar('internacoes_clinicas_mes', $municipio, $competencia, (float) $doMes['total']);
+                    }
+
+                    $contexto->persistirPendentes();
+                    $this->lembrar($chave, $assinatura);
                 }
-
-                $chave = "datasus.sih.{$uf}.{$competencia}";
-
-                if ($this->jaProcessado($chave, $assinatura, $contexto)) {
-                    continue;
-                }
-
-                $contagens = $this->lerArquivo($remoto, AgregadorDeInternacoes::CAMPOS, fn (iterable $registros): array => $this->agregador->agregar($registros, $porCodigo));
-
-                foreach ($idsDaUf as $municipio) {
-                    $doMes = $contagens[$municipio][$competencia] ?? ['icsap' => 0, 'total' => 0];
-
-                    $contexto->gravar('icsap_internacoes_mes', $municipio, $competencia, (float) $doMes['icsap']);
-                    $contexto->gravar('internacoes_clinicas_mes', $municipio, $competencia, (float) $doMes['total']);
-                }
-
-                $this->lembrar($chave, $assinatura);
             }
+        } catch (Throwable $e) {
+            $erro = $e;
         }
 
-        $contexto->persistirPendentes();
-        $this->avisarLacunas($contexto, $naoPublicados, $arquivos);
-        $this->calcularAcumulados($contexto, $alvo);
+        // Mesmo que a leitura tenha falhado no meio, o que já foi lido vira taxas: o erro continua sendo informado, mas nada se perde.
+        try {
+            $contexto->persistirPendentes();
+
+            if ($erro === null) {
+                $this->avisarLacunas($contexto, $naoPublicados, $arquivos);
+            }
+
+            $this->calcularAcumulados($contexto, $alvo);
+        } catch (Throwable $e) {
+            $erro ??= $e;
+        }
+
+        if ($erro !== null) {
+            throw $erro;
+        }
     }
 
     /**

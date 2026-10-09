@@ -63,11 +63,11 @@ class ConectoresDatasusTest extends TestCase
         parent::tearDown();
     }
 
-    private function executar(string $fonte, ?int $meses = null): Ingestao
+    private function executar(string $fonte, ?int $meses = null, bool $reprocessar = false): Ingestao
     {
         $integracao = Integracao::firstOrCreate(['fonte' => $fonte], Integracao::factory()->daFonte($fonte)->raw());
 
-        return app(Ingestor::class)->executar($integracao->fresh(), OrigemExecucao::Comando, meses: $meses);
+        return app(Ingestor::class)->executar($integracao->fresh(), OrigemExecucao::Comando, meses: $meses, reprocessar: $reprocessar);
     }
 
     private function valor(string $codigo, int $municipio, int $competencia): ?ValorIndicador
@@ -211,7 +211,37 @@ class ConectoresDatasusTest extends TestCase
         $this->assertSame([], $this->datasus->baixados, 'rotina: nada mudou, nada é baixado');
 
         $this->executar('datasus_sih', 2);
-        $this->assertCount(12, $this->datasus->baixados, 'pedido explícito reprocessa tudo');
+        $this->assertSame([], $this->datasus->baixados, 'período escolhido também só busca o que é novo');
+
+        $this->executar('datasus_sih', 2, reprocessar: true);
+        $this->assertCount(12, $this->datasus->baixados, 'reprocessar pedido explicitamente lê tudo de novo');
+    }
+
+    public function test_falha_no_meio_da_carga_mantem_o_que_foi_lido_e_a_proxima_execucao_continua_de_onde_parou(): void
+    {
+        $this->populacaoDeValenca(6000);
+        $this->publicarSihDeUmAno();
+        $this->datasus->publicar(NomesDeArquivo::sih('RJ', 2025, 9), [['ANO_CMPT' => '2025', 'MES_CMPT' => '09', 'IDENT' => '1', 'MUNIC_RES' => '330610', 'DIAG_PRINC' => 'I64']]);
+        $arquivoQueFalha = NomesDeArquivo::sih('RJ', 2026, 9);
+        $this->datasus->falhaAoBaixar = [$arquivoQueFalha];
+
+        $ingestao = $this->executar('datasus_sih', 3);
+
+        $this->assertSame(StatusIngestao::Erro, $ingestao->status);
+        $this->assertStringContainsString('já foram salvos', $ingestao->mensagem);
+        $this->assertStringContainsString('FTP indisponível', $ingestao->mensagem);
+        $this->assertNotNull($this->valor('icsap_internacoes_mes', self::VALENCA, 202510), 'meses lidos antes da falha ficam salvos');
+        $this->assertNull($this->valor('icsap_internacoes_mes', self::VALENCA, 202609), 'o arquivo que falhou não foi salvo');
+        $this->assertNotNull($this->valor('icsap_taxa', self::VALENCA, 202608), 'a taxa que já podia ser calculada é salva mesmo com o erro');
+
+        $this->datasus->falhaAoBaixar = [];
+        $this->datasus->baixados = [];
+
+        $segunda = $this->executar('datasus_sih', 3);
+
+        $this->assertSame([$arquivoQueFalha], $this->datasus->baixados, 'só o arquivo pendente é baixado: o resto já estava salvo');
+        $this->assertNull($segunda->mensagem);
+        $this->assertNotNull($this->valor('icsap_taxa', self::VALENCA, 202609));
     }
 
     public function test_rotina_baixa_apenas_o_arquivo_que_mudou(): void

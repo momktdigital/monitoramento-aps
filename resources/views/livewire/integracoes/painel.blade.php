@@ -232,15 +232,31 @@
                         <fieldset>
                             <legend class="text-sm font-medium">Período a buscar</legend>
                             <div class="mt-3 space-y-3 text-sm">
-                                @foreach (['padrao' => ['Atualização normal', 'Busca apenas os meses recentes (ou o histórico inicial, se for a primeira vez).'], '12' => ['Últimos 12 meses', 'Reprocessa um ano de histórico.'], '36' => ['Últimos 36 meses', 'Reprocessa três anos de histórico. Pode demorar bastante.']] as $valor => [$titulo, $explicacao])
-                                    <label class="flex items-start gap-3 rounded-lg border border-linha p-3">
-                                        <input type="radio" wire:model="periodo" value="{{ $valor }}" class="mt-1">
-                                        <span><span class="font-medium">{{ $titulo }}</span><span class="block text-xs text-tinta-suave">{{ $explicacao }}</span></span>
-                                    </label>
-                                @endforeach
+                                <label class="flex items-start gap-3 rounded-lg border border-linha p-3">
+                                    <input type="radio" wire:model.live="periodo" value="padrao" class="mt-1">
+                                    <span><span class="font-medium">Atualização normal</span><span class="block text-xs text-tinta-suave">Busca apenas os meses recentes (ou o histórico inicial, se for a primeira vez).</span></span>
+                                </label>
+                                <label class="flex items-start gap-3 rounded-lg border border-linha p-3">
+                                    <input type="radio" wire:model.live="periodo" value="personalizado" class="mt-1">
+                                    <span class="w-full">
+                                        <span class="font-medium">Período personalizado</span>
+                                        <span class="block text-xs text-tinta-suave">Busca os últimos meses que você informar (de 1 a {{ \App\Integrations\ContextoDeIngestao::MAXIMO_DE_MESES }}). Períodos longos podem demorar bastante.</span>
+                                        @if ($periodo === 'personalizado')
+                                            <span class="mt-3 flex items-center gap-2">
+                                                <input id="meses" type="number" min="1" max="{{ \App\Integrations\ContextoDeIngestao::MAXIMO_DE_MESES }}" wire:model="meses" aria-label="Quantidade de meses" class="block w-28 rounded-lg border border-linha bg-white px-3 py-2.5 text-sm focus:border-marca-600 focus:outline-2 focus:outline-marca-600/30">
+                                                <span class="text-xs text-tinta-suave">meses, contando do mês atual para trás</span>
+                                            </span>
+                                        @endif
+                                    </span>
+                                </label>
                             </div>
                             @error('periodo') <p class="mt-2 text-sm text-red-700">{{ $message }}</p> @enderror
+                            @error('meses') <p class="mt-2 text-sm text-red-700">{{ $message }}</p> @enderror
                         </fieldset>
+                        <label class="flex items-start gap-3 text-sm">
+                            <input type="checkbox" wire:model="reprocessar" class="mt-1 size-4 rounded border-linha text-marca-600">
+                            <span><span class="font-medium">Reprocessar arquivos já lidos</span><span class="block text-xs text-tinta-suave">Desmarcado (recomendado), só entra o que é novo ou foi alterado na fonte, e o que já está salvo é mantido. Marque apenas se suspeitar que dados antigos estão errados.</span></span>
+                        </label>
                         <p class="text-xs text-tinta-suave">A atualização roda em segundo plano. Reexecutar não duplica dados: valores existentes são apenas atualizados.</p>
                         <div class="flex flex-wrap justify-end gap-3 border-t border-linha pt-5">
                             <x-ui.botao type="button" tipo="secundario" wire:click="fechar">Cancelar</x-ui.botao>

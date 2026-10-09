@@ -4,6 +4,7 @@ namespace App\Integrations\Conectores;
 
 use App\Enums\Frequencia;
 use App\Integrations\CampoDeConfiguracao;
+use App\Integrations\ContextoDeIngestao;
 use App\Integrations\Contracts\ConectorDeFonte;
 use App\Support\Competencia;
 
@@ -40,7 +41,7 @@ abstract class ConectorBase implements ConectorDeFonte
                 padrao: $this->mesesDeHistoricoPadrao,
                 ajuda: 'Quantos meses retroativos buscar na primeira vez. Depois, apenas os meses recentes são atualizados.',
                 minimo: 1,
-                maximo: 120,
+                maximo: ContextoDeIngestao::MAXIMO_DE_MESES,
             ),
         ];
     }

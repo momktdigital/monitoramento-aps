@@ -17,6 +17,9 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class ContextoDeIngestao
 {
+    /** Maior janela, em meses, que se pode pedir (tela, comando e configuração usam o mesmo limite). */
+    public const MAXIMO_DE_MESES = 120;
+
     private const TAMANHO_DO_LOTE = 1000;
 
     private const MAXIMO_DE_AVISOS = 50;
@@ -58,6 +61,7 @@ class ContextoDeIngestao
         public readonly CarbonInterface $agora,
         private readonly ?int $mesesSolicitados = null,
         private readonly bool $apenasPiloto = false,
+        private readonly bool $reprocessar = false,
     ) {
         $this->indicadoresAtivos = Indicador::ativo()->pluck('id', 'codigo')->all();
     }
@@ -143,12 +147,20 @@ class ContextoDeIngestao
     }
 
     /**
-     * Execução pedida de propósito (botão "Atualizar agora" ou --meses): reprocessa tudo, sem pular
-     * arquivos que não mudaram desde a última leitura.
+     * Se o período foi escolhido de propósito (tela ou --meses), em vez de seguir o padrão da fonte.
+     */
+    public function periodoFoiSolicitado(): bool
+    {
+        return $this->mesesSolicitados !== null;
+    }
+
+    /**
+     * Reprocessamento pedido de propósito (opção "Reprocessar" da tela ou --reprocessar): não pula arquivos que não
+     * mudaram desde a última leitura. Sem ele, mesmo um período escolhido só busca o que é novo ou foi alterado.
      */
     public function ehReprocessamento(): bool
     {
-        return $this->mesesSolicitados !== null;
+        return $this->reprocessar;
     }
 
     /**

@@ -82,7 +82,7 @@ class DatasusSimSinascConector extends ConectorDatasusBase
         $this->limparTemporariosAntigos();
 
         $anoAtual = (int) $contexto->agora->format('Y');
-        $quantidade = $contexto->ehReprocessamento()
+        $quantidade = $contexto->periodoFoiSolicitado()
             ? (int) ceil($contexto->meses() / 12)
             : (int) $contexto->integracao->valorDeConfig('anos_historico', self::ANOS_DE_HISTORICO_PADRAO);
         $anos = range($anoAtual - max(1, $quantidade) + 1, $anoAtual);
@@ -119,6 +119,7 @@ class DatasusSimSinascConector extends ConectorDatasusBase
                     : $this->lerArquivo($remotoObitos, AgregadorDeObitos::CAMPOS, fn (iterable $registros): array => $this->obitos->agregar($registros, $porCodigo));
 
                 $this->gravarDoAno($contexto, $ano, $idsDaUf, $nascimentos, $obitos);
+                $contexto->persistirPendentes();
 
                 $this->lembrar($chaveNascimentos, $assinaturaNascimentos);
 

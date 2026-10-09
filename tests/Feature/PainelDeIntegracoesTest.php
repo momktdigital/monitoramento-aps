@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\OrigemExecucao;
 use App\Enums\StatusIngestao;
 use App\Enums\StatusIntegracao;
+use App\Integrations\ContextoDeIngestao;
 use App\Integrations\RegistroDeConectores;
 use App\Jobs\IngerirFonte;
 use App\Livewire\Integracoes\Painel;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class PainelDeIntegracoesTest extends TestCase
@@ -212,18 +214,69 @@ class PainelDeIntegracoesTest extends TestCase
 
         $this->painel()
             ->call('abrirAtualizacao', $ibge->id)
-            ->set('periodo', '36')
+            ->set('periodo', 'personalizado')
+            ->set('meses', '36')
             ->call('atualizarAgora')
             ->assertHasNoErrors()
             ->assertSet('janela', null);
 
         Queue::assertPushed(IngerirFonte::class, fn (IngerirFonte $job): bool => $job->integracaoId === $ibge->id
             && $job->meses === 36
+            && $job->reprocessar === false
             && $job->userId === $this->admin->id
             && $job->origem === OrigemExecucao::Manual);
 
         $this->assertSame(StatusIntegracao::NaFila, $ibge->fresh()->status);
         $this->assertDatabaseHas('audit_logs', ['evento' => 'integracao_execucao_forcada', 'user_id' => $this->admin->id]);
+    }
+
+    public function test_periodo_personalizado_aceita_ate_o_maximo_e_reprocessar_e_opcional(): void
+    {
+        Queue::fake();
+        $ibge = Integracao::where('fonte', 'ibge')->firstOrFail();
+
+        $this->painel()
+            ->call('abrirAtualizacao', $ibge->id)
+            ->set('periodo', 'personalizado')
+            ->set('meses', (string) ContextoDeIngestao::MAXIMO_DE_MESES)
+            ->set('reprocessar', true)
+            ->call('atualizarAgora')
+            ->assertHasNoErrors();
+
+        Queue::assertPushed(IngerirFonte::class, fn (IngerirFonte $job): bool => $job->meses === ContextoDeIngestao::MAXIMO_DE_MESES && $job->reprocessar === true);
+    }
+
+    public function test_atualizacao_normal_nao_envia_periodo(): void
+    {
+        Queue::fake();
+        $ibge = Integracao::where('fonte', 'ibge')->firstOrFail();
+
+        $this->painel()->call('abrirAtualizacao', $ibge->id)->set('meses', '999')->call('atualizarAgora')->assertHasNoErrors();
+
+        Queue::assertPushed(IngerirFonte::class, fn (IngerirFonte $job): bool => $job->meses === null && $job->reprocessar === false);
+    }
+
+    #[DataProvider('mesesInvalidos')]
+    public function test_quantidade_de_meses_fora_do_limite_e_rejeitada(string $meses): void
+    {
+        Queue::fake();
+
+        $this->painel()
+            ->call('abrirAtualizacao', Integracao::where('fonte', 'ibge')->firstOrFail()->id)
+            ->set('periodo', 'personalizado')
+            ->set('meses', $meses)
+            ->call('atualizarAgora')
+            ->assertHasErrors('meses');
+
+        Queue::assertNothingPushed();
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function mesesInvalidos(): array
+    {
+        return ['zero' => ['0'], 'negativo' => ['-3'], 'acima do máximo' => [(string) (ContextoDeIngestao::MAXIMO_DE_MESES + 1)], 'vazio' => [''], 'texto' => ['muitos']];
     }
 
     public function test_clique_repetido_nao_enfileira_duas_vezes(): void

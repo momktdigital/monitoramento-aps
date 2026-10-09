@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Enums\OrigemExecucao;
+use App\Integrations\ContextoDeIngestao;
 use App\Integrations\Ingestor;
 use App\Integrations\RegistroDeConectores;
 use App\Models\Integracao;
@@ -12,7 +13,7 @@ use Illuminate\Console\Command;
 use InvalidArgumentException;
 use Symfony\Component\Console\Helper\ProgressBar;
 
-#[Signature('aps:ingerir {fonte? : ibge, egestor, dados_abertos ou transparencia} {--todas : Executa todas as fontes ativas, na ordem correta} {--meses= : Quantos meses retroativos buscar} {--piloto : Carga rápida: apenas os municípios marcados como piloto} {--fila : Apenas enfileira, em vez de executar agora}')]
+#[Signature('aps:ingerir {fonte? : ibge, egestor, dados_abertos ou transparencia} {--todas : Executa todas as fontes ativas, na ordem correta} {--meses= : Quantos meses retroativos buscar} {--reprocessar : Lê de novo também os arquivos que não mudaram desde a última leitura} {--piloto : Carga rápida: apenas os municípios marcados como piloto} {--fila : Apenas enfileira, em vez de executar agora}')]
 #[Description('Atualiza os dados de uma fonte pública (ou de todas) e recalcula os benchmarks, mostrando o progresso')]
 class IngerirFontes extends Command
 {
@@ -21,8 +22,8 @@ class IngerirFontes extends Command
         $integracoes = RegistroDeConectores::garantirIntegracoes()->keyBy('fonte');
         $meses = $this->option('meses') !== null ? (int) $this->option('meses') : null;
 
-        if ($meses !== null && ($meses < 1 || $meses > 120)) {
-            $this->components->error('Informe --meses entre 1 e 120.');
+        if ($meses !== null && ($meses < 1 || $meses > ContextoDeIngestao::MAXIMO_DE_MESES)) {
+            $this->components->error('Informe --meses entre 1 e '.ContextoDeIngestao::MAXIMO_DE_MESES.'.');
 
             return self::FAILURE;
         }
@@ -55,7 +56,7 @@ class IngerirFontes extends Command
 
         foreach ($selecionadas as $integracao) {
             if ($this->option('fila')) {
-                $enfileirada = $ingestor->enfileirar($integracao, OrigemExecucao::Comando, meses: $meses);
+                $enfileirada = $ingestor->enfileirar($integracao, OrigemExecucao::Comando, meses: $meses, reprocessar: (bool) $this->option('reprocessar'));
                 $this->components->twoColumnDetail($integracao->fonte, $enfileirada ? 'enfileirada' : 'já está em andamento');
 
                 continue;
@@ -94,7 +95,7 @@ class IngerirFontes extends Command
             }
         };
 
-        $ingestao = $ingestor->executar($integracao, OrigemExecucao::Comando, meses: $meses, apenasPiloto: (bool) $this->option('piloto'), aoProgredir: $aoProgredir);
+        $ingestao = $ingestor->executar($integracao, OrigemExecucao::Comando, meses: $meses, apenasPiloto: (bool) $this->option('piloto'), aoProgredir: $aoProgredir, reprocessar: (bool) $this->option('reprocessar'));
 
         $this->encerrarBarra($barra);
         $this->newLine();
