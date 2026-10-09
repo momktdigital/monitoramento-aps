@@ -48,6 +48,9 @@ return [
     'datasus' => [
         'ftp_host' => 'ftp.datasus.gov.br',
         'ftp_timeout' => 120,
+        'ftp_timeout_conexao' => 10,
+        'ftp_tentativas_conexao' => 12,
+        'ftp_espera_entre_tentativas_s' => 2,
         'python' => env('APS_PYTHON', 'python'),
         'python_timeout' => 900,
         'diretorio_temporario' => storage_path('app/datasus'),

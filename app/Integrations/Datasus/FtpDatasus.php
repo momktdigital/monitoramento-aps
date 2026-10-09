@@ -95,16 +95,39 @@ class FtpDatasus implements BaixadorDeArquivos
             throw new ConfiguracaoInvalida('A extensão "ftp" do PHP não está habilitada. Ative-a no php.ini (extension=ftp) para ler os dados do DATASUS.');
         }
 
-        $conexao = @ftp_connect((string) config('aps.datasus.ftp_host'), 21, (int) config('aps.datasus.ftp_timeout'));
-
-        if ($conexao === false || ! @ftp_login($conexao, 'anonymous', 'anonymous@example.org')) {
-            throw new RuntimeException('Não foi possível conectar ao FTP do DATASUS (ftp.datasus.gov.br). O serviço pode estar fora do ar ou a rede bloqueia conexões FTP.');
-        }
+        $conexao = $this->conectarComTentativas();
 
         ftp_pasv($conexao, true);
         ftp_set_option($conexao, FTP_TIMEOUT_SEC, (int) config('aps.datasus.ftp_timeout'));
 
         return $this->conexao = $conexao;
+    }
+
+    /**
+     * O FTP do DATASUS recusa (ou deixa pendurada) boa parte das conexões, mas atende na hora as que aceita. Por isso cada
+     * tentativa tem um prazo curto e o conector tenta várias vezes antes de desistir.
+     */
+    private function conectarComTentativas(): Connection
+    {
+        $tentativas = max(1, (int) config('aps.datasus.ftp_tentativas_conexao'));
+
+        for ($tentativa = 1; $tentativa <= $tentativas; $tentativa++) {
+            $conexao = @ftp_connect((string) config('aps.datasus.ftp_host'), 21, (int) config('aps.datasus.ftp_timeout_conexao'));
+
+            if ($conexao !== false && @ftp_login($conexao, 'anonymous', 'anonymous@example.org')) {
+                return $conexao;
+            }
+
+            if ($conexao !== false) {
+                @ftp_close($conexao);
+            }
+
+            if ($tentativa < $tentativas) {
+                sleep((int) config('aps.datasus.ftp_espera_entre_tentativas_s'));
+            }
+        }
+
+        throw new RuntimeException("Não foi possível conectar ao FTP do DATASUS (ftp.datasus.gov.br) após {$tentativas} tentativas. O serviço pode estar fora do ar ou a rede bloqueia conexões FTP.");
     }
 
     private function desconectar(): void
