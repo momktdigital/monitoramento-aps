@@ -10,17 +10,8 @@
 @endphp
 
 <div wire:poll.{{ $algumaEmAndamento ? '5s' : '30s' }} class="space-y-6">
-    <header>
-        <h1 class="text-2xl font-semibold">Integrações</h1>
-        <p class="mt-1 text-sm text-tinta-suave">Fontes públicas de dados que alimentam a plataforma. Aqui você acompanha a última atualização, configura chaves e força uma nova carga.</p>
-    </header>
+    <x-admin.cabecalho titulo="Integrações" descricao="Fontes públicas de dados que alimentam a plataforma. Aqui você acompanha a última atualização, configura chaves e força uma nova carga." />
 
-    @if (session('sucesso'))
-        <div role="status" class="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{{ session('sucesso') }}</div>
-    @endif
-    @if (session('aviso'))
-        <div role="alert" class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">{{ session('aviso') }}</div>
-    @endif
     @if ($filaParada)
         <div role="alert" class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Há atualizações esperando na fila há alguns minutos. O processador de filas pode estar desligado: inicie-o com <code class="rounded bg-white px-1.5 py-0.5 text-xs font-semibold">php artisan queue:work</code> (ou <code class="rounded bg-white px-1.5 py-0.5 text-xs font-semibold">composer run dev</code>).

@@ -16,25 +16,27 @@
 
         <nav class="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:pb-0" aria-label="Navegação principal">
             @php
+                // [rota, rótulo, padrão de rotas que deixam o item marcado]
                 $itens = [
-                    ['painel', 'Meu painel'],
-                    ['matriz', 'Matriz de prioridade'],
-                    ['comparar', 'Comparar municípios'],
-                    ['mapa', 'Mapa'],
-                    ['metodologia', 'Metodologia'],
-                    ['conta.seguranca', 'Segurança da conta'],
+                    ['painel', 'Meu painel', 'painel'],
+                    ['matriz', 'Matriz de prioridade', 'matriz'],
+                    ['comparar', 'Comparar municípios', 'comparar'],
+                    ['mapa', 'Mapa', 'mapa'],
+                    ['metodologia', 'Metodologia', 'metodologia'],
                 ];
 
-                if (auth()->user()->can('gerenciar-integracoes')) {
-                    array_splice($itens, 5, 0, [['integracoes', 'Integrações']]);
+                if (auth()->user()->can('administrar')) {
+                    $itens[] = ['admin.inicio', 'Administração', 'admin.*'];
                 }
+
+                $itens[] = ['conta.seguranca', 'Segurança da conta', 'conta.seguranca'];
             @endphp
-            @foreach ($itens as [$rota, $rotulo])
+            @foreach ($itens as [$rota, $rotulo, $padrao])
                 <a href="{{ route($rota) }}" wire:navigate @class([
                     'whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium',
-                    'bg-marca-50 text-marca-900' => request()->routeIs($rota),
-                    'text-tinta-suave hover:bg-fundo hover:text-tinta' => ! request()->routeIs($rota),
-                ]) @if (request()->routeIs($rota)) aria-current="page" @endif>{{ $rotulo }}</a>
+                    'bg-marca-50 text-marca-900' => request()->routeIs($padrao),
+                    'text-tinta-suave hover:bg-fundo hover:text-tinta' => ! request()->routeIs($padrao),
+                ]) @if (request()->routeIs($padrao)) aria-current="page" @endif>{{ $rotulo }}</a>
             @endforeach
         </nav>
 

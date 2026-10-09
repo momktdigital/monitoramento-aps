@@ -4,6 +4,11 @@
         <p class="mt-1 text-sm text-tinta-suave">Proteja seu acesso com verificação em duas etapas e uma senha forte.</p>
     </header>
 
+    @if (auth()->user()->deve_alterar_senha)
+        <div role="alert" class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <strong>Sua conta usa uma senha temporária.</strong> Escolha uma senha nova em <a href="#titulo-senha" class="font-medium underline">Alterar senha</a> (use a senha temporária como "senha atual") para liberar o restante do sistema.
+        </div>
+    @endif
     @if (session('aviso'))
         <div role="alert" class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">{{ session('aviso') }}</div>
     @endif

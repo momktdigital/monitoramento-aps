@@ -32,6 +32,27 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
+    // Botão "Copiar" de um valor mostrado uma única vez (senha temporária): copia o texto do elemento marcado com x-ref="valor".
+    window.Alpine.data('copiar', () => ({
+        copiado: false,
+        async copiar() {
+            const texto = this.$refs.valor?.value ?? this.$refs.valor?.textContent ?? '';
+
+            try {
+                await navigator.clipboard.writeText(texto);
+            } catch {
+                this.$refs.valor?.select?.();
+                document.execCommand('copy');
+            }
+
+            this.copiado = true;
+            setTimeout(() => (this.copiado = false), 2500);
+        },
+        get rotulo() {
+            return this.copiado ? 'Copiado!' : 'Copiar';
+        },
+    }));
+
     // Cartão de um visual: alterna entre gráfico e tabela, amplia o cartão sobre a página e baixa imagem ou planilha.
     window.Alpine.data('cartao', () => ({
         expandido: false,

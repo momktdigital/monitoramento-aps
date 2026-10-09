@@ -88,6 +88,7 @@ class Seguranca extends Component
     public function alterarSenha(UpdateUserPassword $update): void
     {
         $user = Auth::user();
+        $eraSenhaTemporaria = $user->deve_alterar_senha;
 
         $update->update($user, [
             'current_password' => $this->current_password,
@@ -100,6 +101,10 @@ class Seguranca extends Component
 
         $this->reset('current_password', 'password', 'password_confirmation');
         session()->flash('sucesso', 'Senha alterada com sucesso. Outras sessões foram encerradas.');
+
+        if ($eraSenhaTemporaria) {
+            $this->redirectRoute('painel', navigate: true);
+        }
     }
 
     private function confirmarSenhaAtual(): void

@@ -95,4 +95,9 @@ return [
         3306305, // Volta Redonda
     ],
 
+    // Trilha de auditoria: registros mais antigos que isto são apagados todo dia (mínimo de 30 dias).
+    'auditoria' => [
+        'retencao_dias' => (int) env('AUDITORIA_RETENCAO_DIAS', 365),
+    ],
+
 ];

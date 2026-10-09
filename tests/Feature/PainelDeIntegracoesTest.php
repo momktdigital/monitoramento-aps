@@ -54,11 +54,16 @@ class PainelDeIntegracoesTest extends TestCase
 
     public function test_so_administradores_acessam_a_tela(): void
     {
-        $this->get(route('integracoes'))->assertRedirect(route('login'));
+        $this->get(route('admin.integracoes'))->assertRedirect(route('login'));
 
-        $this->actingAs(User::factory()->create())->get(route('integracoes'))->assertForbidden();
-        $this->actingAs(User::factory()->gestor()->create())->get(route('integracoes'))->assertForbidden();
-        $this->actingAs($this->admin)->get(route('integracoes'))->assertOk()->assertSee('Integrações');
+        $this->actingAs(User::factory()->create())->get(route('admin.integracoes'))->assertForbidden();
+        $this->actingAs(User::factory()->gestor()->create())->get(route('admin.integracoes'))->assertForbidden();
+        $this->actingAs($this->admin)->get(route('admin.integracoes'))->assertOk()->assertSee('Integrações');
+    }
+
+    public function test_o_endereco_antigo_redireciona_para_a_administracao(): void
+    {
+        $this->actingAs($this->admin)->get('/integracoes')->assertRedirect('/admin/integracoes');
     }
 
     public function test_usuario_sem_permissao_nao_consegue_usar_o_componente_diretamente(): void
@@ -359,7 +364,7 @@ class PainelDeIntegracoesTest extends TestCase
 
     public function test_a_tela_aparece_no_menu_apenas_para_administradores(): void
     {
-        $this->actingAs($this->admin)->get(route('painel'))->assertSee('Integrações');
-        $this->actingAs(User::factory()->gestor()->create())->get(route('painel'))->assertDontSee('Integrações');
+        $this->actingAs($this->admin)->get(route('painel'))->assertSee('Administração');
+        $this->actingAs(User::factory()->gestor()->create())->get(route('painel'))->assertDontSee('Administração');
     }
 }

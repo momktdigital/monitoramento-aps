@@ -12,9 +12,13 @@ use Illuminate\Support\Facades\DB;
 /**
  * Versão da metodologia dos índices. O conteúdo padrão vem de `config/indices.php`; mudou o arquivo, nasce uma nova versão.
  */
-#[Fillable(['versao', 'hash', 'ativa', 'configuracao'])]
+#[Fillable(['versao', 'hash', 'origem', 'ativa', 'configuracao'])]
 class Metodologia extends Model
 {
+    public const ORIGEM_ARQUIVO = 'arquivo';
+
+    public const ORIGEM_PAINEL = 'painel';
+
     /** @use HasFactory<MetodologiaFactory> */
     use HasFactory;
 
@@ -54,14 +58,25 @@ class Metodologia extends Model
      * Garante que a versão ativa corresponde à configuração informada (por padrão, `config/indices.php`).
      * Devolve a versão ativa existente se nada mudou, ou cria e ativa uma nova.
      *
+     * Sem configuração informada, uma versão ajustada pelo administrador no painel continua valendo: o arquivo
+     * só volta a mandar quando o administrador pedir (`voltarAoArquivo`).
+     *
      * @param  array<string, mixed>|null  $configuracao
      */
-    public static function sincronizar(?array $configuracao = null): self
+    public static function sincronizar(?array $configuracao = null, string $origem = self::ORIGEM_ARQUIVO): self
     {
+        if ($configuracao === null) {
+            $atual = self::query()->ativa()->first();
+
+            if ($atual?->origem === self::ORIGEM_PAINEL) {
+                return $atual;
+            }
+        }
+
         $configuracao ??= (array) config('indices');
         $hash = self::hashDe($configuracao);
 
-        return DB::transaction(function () use ($configuracao, $hash): self {
+        return DB::transaction(function () use ($configuracao, $hash, $origem): self {
             $ativa = self::query()->ativa()->first();
 
             if ($ativa !== null && $ativa->hash === $hash) {
@@ -81,10 +96,36 @@ class Metodologia extends Model
             return self::create([
                 'versao' => ((int) self::query()->max('versao')) + 1,
                 'hash' => $hash,
+                'origem' => $origem,
                 'ativa' => true,
                 'configuracao' => $configuracao,
             ]);
         });
+    }
+
+    /**
+     * Ativa uma configuração montada no painel de administração (pesos ajustados), criando a versão se for nova.
+     *
+     * @param  array<string, mixed>  $configuracao
+     */
+    public static function ativarDoPainel(array $configuracao): self
+    {
+        return self::sincronizar($configuracao, self::ORIGEM_PAINEL);
+    }
+
+    /**
+     * Abandona os ajustes do painel e volta a seguir o conteúdo de `config/indices.php`.
+     */
+    public static function voltarAoArquivo(): self
+    {
+        self::query()->where('origem', self::ORIGEM_PAINEL)->update(['ativa' => false]);
+
+        return self::sincronizar();
+    }
+
+    public function veioDoPainel(): bool
+    {
+        return $this->origem === self::ORIGEM_PAINEL;
     }
 
     /**

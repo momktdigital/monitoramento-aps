@@ -32,6 +32,7 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'perfil' => Perfil::Leitura,
             'ativo' => true,
+            'deve_alterar_senha' => false,
             'municipio_id' => null,
             'painel_personalizado' => false,
             'two_factor_secret' => null,
@@ -54,6 +55,14 @@ class UserFactory extends Factory
     public function inativo(): static
     {
         return $this->state(fn (array $attributes) => ['ativo' => false]);
+    }
+
+    /**
+     * Conta com senha temporária: a troca é obrigatória no próximo acesso.
+     */
+    public function comSenhaTemporaria(): static
+    {
+        return $this->state(fn (array $attributes) => ['deve_alterar_senha' => true]);
     }
 
     /**

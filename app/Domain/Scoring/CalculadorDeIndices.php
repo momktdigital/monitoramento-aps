@@ -2,6 +2,7 @@
 
 namespace App\Domain\Scoring;
 
+use App\Administracao\VerificadorDeSaude;
 use App\Domain\Indicators\CalculadorDeBenchmarks;
 use App\Models\Benchmark;
 use App\Models\Indicador;
@@ -91,6 +92,8 @@ class CalculadorDeIndices
         }
 
         ksort($quadrantes);
+
+        VerificadorDeSaude::indicesAtualizados();
 
         return ['metodologia' => $metodologia->versao, 'linhas' => count($linhas), 'ultima_competencia' => $ultima, 'quadrantes' => $quadrantes, 'avisos' => $avisos];
     }

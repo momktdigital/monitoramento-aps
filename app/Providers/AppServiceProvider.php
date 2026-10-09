@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Http\Middleware\EnsurePasswordIsChanged;
 use App\Http\Middleware\EnsureTwoFactorSetup;
 use App\Integrations\Datasus\Contratos\BaixadorDeArquivos;
 use App\Integrations\Datasus\Contratos\LeitorDeRegistros;
@@ -51,10 +52,12 @@ class AppServiceProvider extends ServiceProvider
             return $this->app->isProduction() ? $regra->uncompromised() : $regra;
         });
 
-        Gate::define('gerenciar-integracoes', fn (User $usuario): bool => $usuario->isAdmin());
+        // Toda a área de administração (usuários, integrações, municípios, indicadores, metodologia, auditoria, sistema).
+        Gate::define('administrar', fn (User $usuario): bool => $usuario->isAdmin() && $usuario->ativo);
+        Gate::define('gerenciar-integracoes', fn (User $usuario): bool => Gate::forUser($usuario)->allows('administrar'));
 
         Event::subscribe(AuditarAutenticacao::class);
 
-        Livewire::addPersistentMiddleware([EnsureTwoFactorSetup::class]);
+        Livewire::addPersistentMiddleware([EnsureTwoFactorSetup::class, EnsurePasswordIsChanged::class]);
     }
 }

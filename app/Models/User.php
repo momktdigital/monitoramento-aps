@@ -13,7 +13,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
-#[Fillable(['name', 'email', 'password', 'perfil', 'ativo', 'municipio_id', 'painel_personalizado'])]
+#[Fillable(['name', 'email', 'password', 'perfil', 'ativo', 'municipio_id', 'painel_personalizado', 'deve_alterar_senha', 'criado_por_id'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
 class User extends Authenticatable
 {
@@ -33,6 +33,8 @@ class User extends Authenticatable
             'perfil' => Perfil::class,
             'ativo' => 'boolean',
             'painel_personalizado' => 'boolean',
+            'deve_alterar_senha' => 'boolean',
+            'ultimo_acesso_em' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
         ];
     }
@@ -45,6 +47,16 @@ class User extends Authenticatable
     public function municipio(): BelongsTo
     {
         return $this->belongsTo(Municipio::class);
+    }
+
+    /**
+     * Administrador que criou a conta (nulo para contas criadas pelo terminal ou cujo autor foi removido).
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function criadoPor(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'criado_por_id');
     }
 
     /**

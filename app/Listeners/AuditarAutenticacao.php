@@ -20,7 +20,12 @@ class AuditarAutenticacao
 {
     public function subscribe(Dispatcher $events): void
     {
-        $events->listen(Login::class, fn (Login $e) => Auditoria::registrar('login', [], $e->user->getAuthIdentifier()));
+        $events->listen(Login::class, function (Login $e): void {
+            Auditoria::registrar('login', [], $e->user->getAuthIdentifier());
+
+            // Guarda o último acesso para a administração de usuários (sem disparar eventos de modelo).
+            $e->user->forceFill(['ultimo_acesso_em' => now(), 'ultimo_acesso_ip' => request()->ip()])->saveQuietly();
+        });
         $events->listen(Logout::class, fn (Logout $e) => Auditoria::registrar('logout', [], $e->user?->getAuthIdentifier()));
         $events->listen(Failed::class, fn (Failed $e) => Auditoria::registrar('login_falhou', [
             'email' => Str::limit(Str::lower((string) ($e->credentials['email'] ?? '')), 120, ''),
