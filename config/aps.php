@@ -4,6 +4,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Proxies confiáveis
+    |--------------------------------------------------------------------------
+    |
+    | Atrás de um proxy ou balanceador com HTTPS (nginx, Cloudflare, painel de hospedagem), o PHP recebe a requisição
+    | em http e o proxy avisa o esquema original por cabeçalho. Informe aqui o IP do proxy (vários, separados por
+    | vírgula) ou * para confiar no que estiver chamando. Vazio = não confiar em nenhum (padrão seguro, sem proxy).
+    |
+    */
+
+    'proxies_confiaveis' => env('TRUSTED_PROXIES'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Fontes de dados (lista de hosts permitidos)
     |--------------------------------------------------------------------------
     |

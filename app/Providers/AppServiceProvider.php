@@ -10,6 +10,7 @@ use App\Integrations\Datasus\LeitorDeDbc;
 use App\Integrations\Datasus\ListaIcsap;
 use App\Listeners\AuditarAutenticacao;
 use App\Models\User;
+use App\Support\ProxiesConfiaveis;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Date;
@@ -38,6 +39,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Date::use(CarbonImmutable::class);
+
+        ProxiesConfiaveis::aplicar(config('aps.proxies_confiaveis'));
 
         Model::shouldBeStrict(! $this->app->isProduction());
         DB::prohibitDestructiveCommands($this->app->isProduction());
