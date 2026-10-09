@@ -7,6 +7,7 @@ use App\Enums\OrigemExecucao;
 use App\Enums\StatusIngestao;
 use App\Enums\StatusIntegracao;
 use App\Integrations\CampoDeConfiguracao;
+use App\Integrations\ContextoDeIngestao;
 use App\Integrations\Contracts\ConectorDeFonte;
 use App\Integrations\Ingestor;
 use App\Integrations\RegistroDeConectores;
@@ -49,7 +50,12 @@ class Painel extends Component
     /** @var array<string, string> */
     public array $valores = [];
 
+    /** @var 'padrao'|'personalizado' */
     public string $periodo = 'padrao';
+
+    public string $meses = '12';
+
+    public bool $reprocessar = false;
 
     /** @var array<int, array{ok: bool, texto: string}> */
     public array $resultadosDeTeste = [];
@@ -86,6 +92,8 @@ class Painel extends Component
         $this->janela = 'atualizar';
         $this->integracaoId = $this->integracaoAutorizada($id)->id;
         $this->periodo = 'padrao';
+        $this->meses = '12';
+        $this->reprocessar = false;
     }
 
     public function abrirHistorico(int $id): void
@@ -96,7 +104,7 @@ class Painel extends Component
 
     public function fechar(): void
     {
-        $this->reset('janela', 'integracaoId', 'valores', 'periodo');
+        $this->reset('janela', 'integracaoId', 'valores', 'periodo', 'meses', 'reprocessar');
         $this->resetErrorBag();
     }
 
@@ -202,7 +210,13 @@ class Painel extends Component
     {
         $integracao = $this->integracaoAutorizada($this->integracaoId);
 
-        $this->validate(['periodo' => ['required', Rule::in(['padrao', '12', '36'])]]);
+        $this->validate([
+            'periodo' => ['required', Rule::in(['padrao', 'personalizado'])],
+            'meses' => ['exclude_unless:periodo,personalizado', 'required', 'integer', 'min:1', 'max:'.ContextoDeIngestao::MAXIMO_DE_MESES],
+            'reprocessar' => ['boolean'],
+        ], [], ['meses' => 'quantidade de meses']);
+
+        $meses = $this->periodo === 'personalizado' ? (int) $this->meses : null;
 
         if ($integracao->conector()->exigeConfiguracao() && ! $this->configuracaoCompleta($integracao)) {
             $this->addError('periodo', 'Configure os parâmetros obrigatórios (como a chave da API) antes de atualizar.');
@@ -213,7 +227,7 @@ class Painel extends Component
         $resultado = RateLimiter::attempt(
             'integracao-forcar:'.Auth::id(),
             self::LIMITE_DE_EXECUCOES_POR_HORA,
-            fn (): string => $ingestor->enfileirar($integracao, OrigemExecucao::Manual, Auth::id(), $this->periodo === 'padrao' ? null : (int) $this->periodo)
+            fn (): string => $ingestor->enfileirar($integracao, OrigemExecucao::Manual, Auth::id(), $meses, $this->reprocessar)
                 ? 'enfileirada'
                 : 'em_andamento',
             3600,
@@ -226,7 +240,7 @@ class Painel extends Component
         }
 
         if ($resultado === 'enfileirada') {
-            Auditoria::registrar('integracao_execucao_forcada', ['fonte' => $integracao->fonte, 'periodo' => $this->periodo]);
+            Auditoria::registrar('integracao_execucao_forcada', ['fonte' => $integracao->fonte, 'meses' => $meses, 'reprocessar' => $this->reprocessar]);
             session()->flash('sucesso', 'Atualização colocada na fila. O processamento começa assim que o processador de filas estiver livre.');
         } else {
             session()->flash('aviso', 'Esta integração já está em andamento.');

@@ -25,6 +25,9 @@ class DatasusFalso implements BaixadorDeArquivos, LeitorDeRegistros
 
     public ?string $falhaAoLer = null;
 
+    /** @var list<string> caminhos remotos cujo download falha (simula o FTP caindo no meio da carga) */
+    public array $falhaAoBaixar = [];
+
     /**
      * @param  list<array<string, string>>  $registros
      */
@@ -47,6 +50,10 @@ class DatasusFalso implements BaixadorDeArquivos, LeitorDeRegistros
     {
         if (! isset($this->arquivos[$caminhoRemoto])) {
             throw new RuntimeException("Arquivo inexistente: {$caminhoRemoto}");
+        }
+
+        if (in_array($caminhoRemoto, $this->falhaAoBaixar, true)) {
+            throw new RuntimeException("FTP indisponível: {$caminhoRemoto}");
         }
 
         file_put_contents($destino, $caminhoRemoto);
