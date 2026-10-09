@@ -140,7 +140,38 @@ class ConsultaDeIndicadores
             ->map(fn ($linha): array => ['municipio_id' => (int) $linha->municipio_id, 'nome' => (string) $linha->nome, 'valor' => (float) $linha->valor])
             ->all();
 
-        // Valores acima do teto empatam (ex.: 112% e 126% de cobertura); dentro do empate, vale o valor real.
+        return $this->ordenarPorSituacao($linhas, $indicador);
+    }
+
+    /**
+     * Valores de todos os municípios do estado na competência, do melhor para o pior.
+     *
+     * @return list<array{municipio_id: int, nome: string, valor: float}>
+     */
+    public function rankingDoEstado(Indicador $indicador, int $competencia, int $codigoUf): array
+    {
+        $linhas = ValorIndicador::query()
+            ->join('municipios', 'municipios.id', '=', 'valores_indicador.municipio_id')
+            ->where('valores_indicador.indicador_id', $indicador->id)
+            ->where('valores_indicador.competencia', $competencia)
+            ->where('municipios.codigo_uf', $codigoUf)
+            ->where('municipios.ativo', true)
+            ->whereNotNull('valores_indicador.valor')
+            ->get(['municipios.id as municipio_id', 'municipios.nome', 'valores_indicador.valor'])
+            ->map(fn ($linha): array => ['municipio_id' => (int) $linha->municipio_id, 'nome' => (string) $linha->nome, 'valor' => (float) $linha->valor])
+            ->all();
+
+        return $this->ordenarPorSituacao($linhas, $indicador);
+    }
+
+    /**
+     * Valores acima do teto empatam (ex.: 112% e 126% de cobertura); dentro do empate, vale o valor real.
+     *
+     * @param  list<array{municipio_id: int, nome: string, valor: float}>  $linhas
+     * @return list<array{municipio_id: int, nome: string, valor: float}>
+     */
+    private function ordenarPorSituacao(array $linhas, Indicador $indicador): array
+    {
         usort($linhas, function (array $a, array $b) use ($indicador): int {
             $ordem = $indicador->valorAvaliado($a['valor']) <=> $indicador->valorAvaliado($b['valor']);
 

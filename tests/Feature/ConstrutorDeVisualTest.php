@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Domain\Indicators\CalculadorDeBenchmarks;
 use App\Domain\Narrative\Analise;
 use App\Enums\TipoDeVisual;
+use App\Models\Indicador;
+use App\Models\Municipio;
 use App\Support\VersaoDosDados;
 use App\Widgets\ConstrutorDeVisual;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -47,7 +49,8 @@ class ConstrutorDeVisualTest extends TestCase
             [['rotulo' => 'Mediana da região de saúde', 'valor' => '75,0%'], ['rotulo' => 'Mediana do estado', 'valor' => '72,5%']],
             $visual['kpi']['comparativos'],
         );
-        $this->assertSame([83.0, 84.0, 85.0, 86.0, 88.0], array_slice($visual['kpi']['sparkline'], -5));
+        $this->assertSame([83.0, 84.0, 85.0, 86.0, 88.0], array_slice(array_column($visual['kpi']['sparkline'], 'valor'), -5));
+        $this->assertSame(['rotulo' => 'jul/2026', 'texto' => '88,0%', 'valor' => 88.0], last($visual['kpi']['sparkline']), 'cada ponto do sparkline traz o período e o valor escrito, para a dica');
         $this->assertSame(Analise::FAVORAVEL, $visual['analise']['tom']);
         $this->assertSame($this->coberturaEsf->o_que_e, $visual['indicador']['o_que_e']);
         $this->assertSame('e-Gestor APS (Ministério da Saúde)', $visual['indicador']['fonte']);
@@ -130,9 +133,169 @@ class ConstrutorDeVisualTest extends TestCase
         $this->assertSame(Analise::ATENCAO, $visual['analise']['tom']);
     }
 
+    public function test_destaque_traz_a_faixa_de_posicao_na_regiao_com_menor_maior_mediana_e_posicao(): void
+    {
+        $faixa = $this->construtor->construir(TipoDeVisual::Destaque, $this->coberturaEsf, $this->valenca, 24)['kpi']['faixa'];
+
+        // Região 33004 em jul/2026: Valença 88, Volta Redonda 75, Resende 70.
+        $this->assertSame(['70,0%', '88,0%', '75,0%', '88,0%'], [$faixa['minimo'], $faixa['maximo'], $faixa['mediana'], $faixa['valor']]);
+        $this->assertSame(100.0, $faixa['x_valor']);
+        $this->assertEqualsWithDelta(27.8, $faixa['x_mediana'], 0.1);
+        $this->assertSame([1, 3], [$faixa['posicao'], $faixa['total']]);
+        $this->assertTrue($faixa['melhor_e_maior']);
+        $this->assertFalse($faixa['melhor_e_menor']);
+    }
+
+    public function test_faixa_de_posicao_nao_existe_com_poucos_municipios_na_regiao_nem_sem_regiao(): void
+    {
+        $this->assertNull($this->construtor->construir(TipoDeVisual::Destaque, $this->populacao, $this->valenca, 24)['kpi']['faixa'], 'população só tem Valença: sem região para comparar');
+
+        $this->valenca->update(['regiao_saude_codigo' => null]);
+
+        $this->assertNull($this->construtor->construir(TipoDeVisual::Destaque, $this->coberturaEsf, $this->valenca->fresh(), 24)['kpi']['faixa']);
+    }
+
+    public function test_faixa_de_indicador_neutro_nao_tem_posicao(): void
+    {
+        $this->gravar($this->populacao, $this->resende, [202512 => 130000.0]);
+        $this->gravar($this->populacao, $this->voltaRedonda, [202512 => 270000.0]);
+        app(CalculadorDeBenchmarks::class)->recalcularTudo();
+        VersaoDosDados::renovar();
+
+        $faixa = $this->construtor->construir(TipoDeVisual::Destaque, $this->populacao, $this->valenca, 24)['kpi']['faixa'];
+
+        $this->assertNull($faixa['posicao'], 'sem sentido bom ou ruim, ninguém está "à frente"');
+        $this->assertFalse($faixa['melhor_e_maior']);
+        $this->assertFalse($faixa['melhor_e_menor']);
+    }
+
+    public function test_evolucao_informa_o_patamar_pleno_quando_o_indicador_tem_teto(): void
+    {
+        $this->coberturaEsf->update(['teto' => 100.0]);
+        VersaoDosDados::renovar();
+
+        $grafico = $this->construtor->construir(TipoDeVisual::Evolucao, $this->coberturaEsf->fresh(), $this->valenca, 24)['grafico'];
+
+        $this->assertSame(100.0, $grafico['teto']);
+        $this->assertSame('Cobertura da Estratégia Saúde da Família', $grafico['indicador']);
+    }
+
+    public function test_ranking_traz_ids_posicoes_e_total_para_o_clique_e_a_dica(): void
+    {
+        $grafico = $this->construtor->construir(TipoDeVisual::Ranking, $this->coberturaEsf, $this->resende, 24)['grafico'];
+
+        $this->assertSame([$this->valenca->id, $this->voltaRedonda->id, $this->resende->id], $grafico['ids']);
+        $this->assertSame([1, 2, 3], $grafico['posicoes']);
+        $this->assertSame(3, $grafico['total']);
+        $this->assertSame('Mediana da região', $grafico['rotulo_da_mediana']);
+        $this->assertTrue($grafico['melhor_e_maior']);
+    }
+
+    public function test_ranking_do_estado_mostra_todos_os_municipios_quando_sao_poucos_e_a_mediana_do_estado(): void
+    {
+        $visual = $this->construtor->construir(TipoDeVisual::Ranking, $this->coberturaEsf, $this->resende, 24, ConstrutorDeVisual::ESCOPO_ESTADO);
+        $grafico = $visual['grafico'];
+
+        $this->assertSame('estado', $visual['escopo']);
+        $this->assertSame(['Valença', 'Volta Redonda', 'Resende', 'Cabo Frio'], $grafico['categorias']);
+        $this->assertSame(4, $grafico['total']);
+        $this->assertSame('Mediana do estado', $grafico['rotulo_da_mediana']);
+        $this->assertSame(72.5, $grafico['mediana']);
+        $this->assertSame(2, $grafico['destaque']);
+        $this->assertStringContainsString('No estado, Resende ocupa a 3ª posição entre 4 municípios', implode(' ', $visual['analise']['paragrafos']));
+        $this->assertSame(['3ª', 'Resende', '70,0%'], $visual['tabela']['linhas'][2]);
+    }
+
+    public function test_ranking_do_estado_com_muitos_municipios_mostra_uma_janela_em_volta_do_municipio_com_as_posicoes_reais(): void
+    {
+        $outros = [];
+
+        for ($i = 1; $i <= 30; $i++) {
+            $id = 3500000 + $i * 7;
+            $outros[$i] = Municipio::factory()->create(['id' => $id, 'codigo6' => $id % 1000000, 'regiao_saude_codigo' => 35001, 'nome' => sprintf('Cidade %02d', $i)]);
+            $this->gravar($this->coberturaEsf, $outros[$i], [202607 => 100.0 - $i]);
+        }
+
+        app(CalculadorDeBenchmarks::class)->recalcularTudo();
+        VersaoDosDados::renovar();
+
+        // Valores 99, 98, ..., 70 para as cidades 1 a 30; o cenário tem Valença (88), Volta Redonda (75), Resende (70) e Cabo Frio (60).
+        $meio = $this->construtor->construir(TipoDeVisual::Ranking, $this->coberturaEsf, $outros[20], 24, ConstrutorDeVisual::ESCOPO_ESTADO)['grafico'];
+
+        $this->assertCount(15, $meio['categorias'], '7 acima, o município e 7 abaixo');
+        $this->assertSame('Cidade 20', $meio['categorias'][$meio['destaque']]);
+        $this->assertSame(7, $meio['destaque']);
+        $this->assertSame(34, $meio['total']);
+        $this->assertSame(range($meio['posicoes'][0], $meio['posicoes'][0] + 14), $meio['posicoes'], 'posições seguidas, contadas no estado inteiro');
+        $this->assertGreaterThan(15, $meio['posicoes'][7], 'a Cidade 20 (valor 80) está bem abaixo do topo do estado');
+
+        $topo = $this->construtor->construir(TipoDeVisual::Ranking, $this->coberturaEsf, $outros[1], 24, ConstrutorDeVisual::ESCOPO_ESTADO)['grafico'];
+
+        $this->assertSame(1, $topo['posicoes'][0]);
+        $this->assertSame(0, $topo['destaque']);
+        $this->assertCount(15, $topo['categorias'], 'nas pontas a janela encosta no limite em vez de encolher');
+    }
+
+    public function test_o_escopo_faz_parte_do_cache_do_visual_e_so_vale_para_o_ranking(): void
+    {
+        $regiao = $this->construtor->construir(TipoDeVisual::Ranking, $this->coberturaEsf, $this->resende, 24);
+        $estado = $this->construtor->construir(TipoDeVisual::Ranking, $this->coberturaEsf, $this->resende, 24, ConstrutorDeVisual::ESCOPO_ESTADO);
+
+        $this->assertSame('regiao', $regiao['escopo']);
+        $this->assertSame('estado', $estado['escopo']);
+        $this->assertNotSame($regiao['grafico']['categorias'], $estado['grafico']['categorias']);
+        $this->assertNull($this->construtor->construir(TipoDeVisual::Destaque, $this->coberturaEsf, $this->resende, 24, ConstrutorDeVisual::ESCOPO_ESTADO)['escopo']);
+    }
+
+    public function test_escopo_desconhecido_vira_regiao(): void
+    {
+        $visual = $this->construtor->construir(TipoDeVisual::Ranking, $this->coberturaEsf, $this->resende, 24, 'galaxia');
+
+        $this->assertSame('regiao', $visual['escopo']);
+    }
+
+    public function test_mapa_traz_regioes_faixas_legenda_tabela_e_analise(): void
+    {
+        $visual = $this->construtor->construir(TipoDeVisual::Mapa, $this->coberturaEsf, $this->valenca, 24);
+        $mapa = $visual['grafico'];
+
+        $this->assertSame('Mapa: Cobertura da Estratégia Saúde da Família', $visual['titulo']);
+        $this->assertSame('jul/2026', $visual['competencia']);
+        $this->assertSame('mapa', $mapa['modo']);
+        $this->assertSame('uf-33', $mapa['mapa']);
+        $this->assertSame('/dados/malha/33', $mapa['malha'], 'o endereço é relativo: serve em qualquer domínio');
+        $this->assertCount(4, $mapa['regioes']);
+        $this->assertSame((string) $this->valenca->id, $mapa['selecionado']);
+        $this->assertSame('faixas', $visual['legenda']['tipo']);
+        $this->assertSame($mapa['faixas'], $visual['legenda']['faixas']);
+        $this->assertSame(0, $visual['legenda']['sem_dado']);
+        $this->assertSame(['Município', 'Região de saúde', 'Valor'], $visual['tabela']['colunas']);
+        $this->assertCount(4, $visual['tabela']['linhas']);
+        $this->assertArrayNotHasKey('ids', $visual['tabela']);
+        $this->assertStringContainsString('vai de 60,0% (Cabo Frio) a 88,0% (Valença)', implode(' ', $visual['analise']['paragrafos']));
+    }
+
+    public function test_mapa_de_indicador_sem_nenhum_valor_e_sem_dado(): void
+    {
+        $semDados = Indicador::factory()->create(['codigo' => 'sem_valores', 'nome' => 'Indicador sem valores']);
+
+        $visual = $this->construtor->construir(TipoDeVisual::Mapa, $semDados, $this->valenca, 24);
+
+        $this->assertTrue($visual['sem_dado']);
+        $this->assertNull($visual['grafico']);
+    }
+
+    public function test_matriz_sem_indices_calculados_e_sem_dado(): void
+    {
+        $visual = $this->construtor->construir(TipoDeVisual::Matriz, $this->icsap, $this->valenca, 24);
+
+        $this->assertTrue($visual['sem_dado']);
+        $this->assertSame('Matriz de prioridade: necessidade × desempenho', $visual['titulo']);
+    }
+
     public function test_sem_dados_retorna_estado_vazio_com_explicacao_para_todos_os_tipos(): void
     {
-        foreach (TipoDeVisual::cases() as $tipo) {
+        foreach ([TipoDeVisual::Destaque, TipoDeVisual::Evolucao, TipoDeVisual::Ranking] as $tipo) {
             $visual = $this->construtor->construir($tipo, $this->icsap, $this->caboFrio, 24);
 
             $this->assertTrue($visual['sem_dado'], $tipo->value);

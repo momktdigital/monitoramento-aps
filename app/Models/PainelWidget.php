@@ -9,7 +9,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['user_id', 'tipo', 'indicador', 'posicao', 'largura'])]
+/**
+ * Visual de uma área do painel. Um visual é "tipo + indicador" (ex.: evolução da cobertura da ESF); a ordem
+ * dentro da área e a largura (1 a 3 colunas) são escolhas do usuário.
+ */
+#[Fillable(['user_id', 'area_id', 'tipo', 'indicador', 'posicao', 'largura'])]
 class PainelWidget extends Model
 {
     /** @use HasFactory<PainelWidgetFactory> */
@@ -47,5 +51,13 @@ class PainelWidget extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsTo<PainelArea, $this>
+     */
+    public function area(): BelongsTo
+    {
+        return $this->belongsTo(PainelArea::class, 'area_id');
     }
 }

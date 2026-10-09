@@ -12,6 +12,91 @@ document.addEventListener('alpine:init', () => {
         fechar() {
             this.aberto = false;
         },
+        // Clique fora do balão fecha. O próprio botão "?" fica de fora dessa regra: ele já alterna o balão, e fechar de novo
+        // no mesmo clique faria o balão abrir e fechar na hora.
+        fecharFora(evento) {
+            if (!this.$root.contains(evento.target)) {
+                this.aberto = false;
+            }
+        },
+        get oculto() {
+            return !this.aberto;
+        },
+    }));
+
+    // Leva o foco do teclado para o campo marcado com x-ref="campo" assim que o diálogo aparece (o autofocus do HTML
+    // só vale quando a página carrega, não para diálogos que o Livewire insere depois).
+    window.Alpine.data('focoInicial', () => ({
+        init() {
+            setTimeout(() => this.$refs.campo?.focus(), 50);
+        },
+    }));
+
+    // Cartão de um visual: alterna entre gráfico e tabela, amplia o cartão sobre a página e baixa imagem ou planilha.
+    window.Alpine.data('cartao', () => ({
+        expandido: false,
+        vista: 'grafico',
+        get classes() {
+            return this.expandido ? '!fixed inset-3 z-50 !h-auto overflow-y-auto shadow-2xl sm:inset-8' : '';
+        },
+        get estado() {
+            return this.expandido ? 'sim' : 'nao';
+        },
+        get fechado() {
+            return !this.expandido;
+        },
+        get mostraGrafico() {
+            return this.vista === 'grafico';
+        },
+        get mostraTabela() {
+            return this.vista === 'tabela';
+        },
+        alternarVista() {
+            this.vista = this.mostraGrafico ? 'tabela' : 'grafico';
+        },
+        alternarExpansao() {
+            const abrindo = !this.expandido;
+
+            // Enquanto o cartão flutua, a grade guarda o lugar dele para o resto da página não pular.
+            this.$root.style.minHeight = abrindo ? `${this.$root.offsetHeight}px` : '';
+            this.expandido = abrindo;
+            document.body.classList.toggle('overflow-hidden', abrindo);
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+        },
+        fechar() {
+            if (this.expandido) {
+                this.alternarExpansao();
+            }
+        },
+        async baixarImagem() {
+            const area = this.$root.querySelector('[data-area-grafico]');
+
+            if (area) {
+                (await import('./graficos.js')).baixarImagem(area, this.$root.dataset.nome);
+            }
+        },
+        baixarCsv() {
+            const tabela = this.$root.querySelector('table[data-tabela]');
+
+            if (!tabela) {
+                return;
+            }
+
+            const celula = (elemento) => `"${elemento.textContent.trim().replace(/\s+/g, ' ').replace(/"/g, '""')}"`;
+            const linhas = [...tabela.querySelectorAll('tr')].map((linha) => [...linha.children].map(celula).join(';'));
+            // BOM no início: o Excel em português abre os acentos corretamente.
+            const arquivo = new Blob([`﻿${linhas.join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
+            const endereco = URL.createObjectURL(arquivo);
+            const ligacao = document.createElement('a');
+
+            ligacao.href = endereco;
+            ligacao.download = `${this.$root.dataset.nome}.csv`;
+            ligacao.click();
+            setTimeout(() => URL.revokeObjectURL(endereco), 1000);
+        },
+        destroy() {
+            document.body.classList.remove('overflow-hidden');
+        },
     }));
 
     // Grade de visuais reordenável por arrastar e soltar. Só é criada no modo de edição.
@@ -43,13 +128,13 @@ document.addEventListener('alpine:init', () => {
 
             this.grafico = await modulo.criarGrafico(area, ler());
 
-            // Gráficos clicáveis (matriz e mapa): o clique em um município o coloca em foco na página.
+            // Gráficos clicáveis (ranking, mapa e matriz): o clique em um município o coloca em foco em toda a página.
             if (this.$el.dataset.clicavel !== undefined) {
                 this.grafico.on('click', (evento) => {
                     const id = Number(evento?.data?.id);
 
                     if (Number.isInteger(id) && id > 0) {
-                        this.$wire.selecionar(id);
+                        window.Livewire.dispatch('municipio-escolhido', { id });
                     }
                 });
             }

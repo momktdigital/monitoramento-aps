@@ -5,6 +5,7 @@ namespace App\Livewire\Concerns;
 use App\Models\Municipio;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\On;
 
 /**
  * Município em foco nas telas de análise. A escolha fica gravada no usuário e vale para todas as telas:
@@ -30,6 +31,15 @@ trait EscolheMunicipio
      * Troca o município em foco (rejeita códigos inexistentes ou inativos) e lembra a escolha.
      */
     public function selecionar(int $id): void
+    {
+        $this->escolherMunicipio($id);
+    }
+
+    /**
+     * Clique em um município dentro de um gráfico (matriz, mapa ou ranking): ele passa a ser o município em foco.
+     */
+    #[On('municipio-escolhido')]
+    public function municipioEscolhido(int $id): void
     {
         $this->escolherMunicipio($id);
     }

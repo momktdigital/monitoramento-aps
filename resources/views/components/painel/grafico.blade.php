@@ -2,7 +2,7 @@
 
 {{-- O gráfico é desenhado no navegador (ECharts). Cada valor também está em tabela: o gráfico nunca é a única forma de ler o dado. --}}
 <div x-data="grafico" data-dados="{{ json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION) }}" @if ($clicavel) data-clicavel="1" @endif class="mt-4">
-    <div x-ref="area" wire:ignore role="img" aria-label="Gráfico: {{ $titulo }}.{{ $tabela ? ' Os valores estão na tabela logo abaixo.' : ' Os valores estão na tabela desta página.' }}" class="{{ $altura }} w-full"></div>
+    <div x-ref="area" data-area-grafico wire:ignore role="img" aria-label="Gráfico: {{ $titulo }}.{{ $tabela ? ' Os valores estão na tabela logo abaixo.' : ' Os valores estão na tabela desta página.' }}" class="{{ $altura }} w-full"></div>
 </div>
 
 @if ($tabela)

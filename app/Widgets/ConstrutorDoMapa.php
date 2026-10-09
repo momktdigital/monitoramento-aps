@@ -50,7 +50,7 @@ class ConstrutorDoMapa
 
         return [
             'modo' => 'mapa',
-            'malha' => route('malha', ['uf' => $codigoUf]),
+            'malha' => route('malha', ['uf' => $codigoUf], false),
             'mapa' => "uf-{$codigoUf}",
             'regioes' => $regioes,
             'selecionado' => $selecionado === null ? null : (string) $selecionado,

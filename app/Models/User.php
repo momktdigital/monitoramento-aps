@@ -48,6 +48,14 @@ class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<PainelArea, $this>
+     */
+    public function areas(): HasMany
+    {
+        return $this->hasMany(PainelArea::class)->orderBy('posicao')->orderBy('id');
+    }
+
+    /**
      * @return HasMany<PainelWidget, $this>
      */
     public function widgets(): HasMany

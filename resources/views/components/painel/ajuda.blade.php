@@ -15,7 +15,7 @@
         aria-label="Como ler este visual: {{ $indicador['nome'] }}"
         class="flex size-7 items-center justify-center rounded-full border border-linha bg-white text-sm font-semibold text-marca-700 hover:bg-marca-50 focus:outline-2 focus:outline-offset-2 focus:outline-marca-600">?</button>
 
-    <div x-show="aberto" x-cloak x-on:click.outside="fechar" role="dialog" aria-label="Explicação: {{ $indicador['nome'] }}"
+    <div hidden x-bind:hidden="oculto" x-on:click.outside="fecharFora" role="dialog" aria-label="Explicação: {{ $indicador['nome'] }}"
         class="absolute inset-x-3 top-14 z-30 max-h-[28rem] overflow-y-auto rounded-xl border border-linha bg-white p-4 text-left shadow-xl">
         <div class="flex items-start justify-between gap-3">
             <p class="text-sm font-semibold">{{ $indicador['nome'] }}</p>

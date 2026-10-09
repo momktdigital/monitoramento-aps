@@ -31,7 +31,9 @@ class CatalogoDeVisuais
 
     public function permite(string $tipo, string $codigoDoIndicador): bool
     {
-        return TipoDeVisual::tryFrom($tipo) !== null && $this->indicador($codigoDoIndicador) !== null;
+        $visual = TipoDeVisual::tryFrom($tipo);
+
+        return $visual !== null && $this->indicador($codigoDoIndicador) !== null && $visual->aplicaA($codigoDoIndicador);
     }
 
     /**
